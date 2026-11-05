@@ -65,3 +65,26 @@ export type ServiceBilling = (typeof SERVICE_BILLING)[number];
 export const SERVICE_BILLING_OPTIONS = opts<ServiceBilling>([
   ["monthly", "Monthly"], ["one_off", "One-off"], ["hourly", "Hourly"],
 ]);
+
+/* ── Finance ─────────────────────────────────────────────── */
+/** Stored invoice states. "Overdue" is derived (open + past due date), never stored. */
+export const INVOICE_STATUSES = ["draft", "sent", "partial", "paid", "void"] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+export const INVOICE_STATUS_OPTIONS = opts<InvoiceStatus>([
+  ["draft", "Draft"], ["sent", "Sent"], ["partial", "Partially paid"], ["paid", "Paid"], ["void", "Void"],
+]);
+export const OPEN_INVOICE_STATUSES: InvoiceStatus[] = ["sent", "partial"];
+
+export const PAYMENT_METHODS = ["bank_transfer", "cash", "card", "cheque", "online", "other"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const PAYMENT_METHOD_OPTIONS = opts<PaymentMethod>([
+  ["bank_transfer", "Bank transfer"], ["cash", "Cash"], ["card", "Card"], ["cheque", "Cheque"],
+  ["online", "Online gateway"], ["other", "Other"],
+]);
+
+/** Only "completed" payments count towards revenue and invoice balances. */
+export const PAYMENT_STATUSES = ["completed", "pending", "failed", "refunded"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export const PAYMENT_STATUS_OPTIONS = opts<PaymentStatus>([
+  ["completed", "Completed"], ["pending", "Pending"], ["failed", "Failed"], ["refunded", "Refunded"],
+]);

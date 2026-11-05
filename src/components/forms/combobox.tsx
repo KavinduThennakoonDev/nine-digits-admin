@@ -12,7 +12,7 @@ export type ComboOption = { value: string; label: string; hint?: string };
 /** Searchable single select. `value` "" means nothing selected. */
 export function Combobox({
   id, value, onChange, options, placeholder = "Select…", searchPlaceholder = "Search…", emptyText = "No matches.",
-  invalid, disabled, clearable = true, className,
+  invalid, disabled, clearable = true, className, ariaLabel,
 }: {
   id?: string;
   value: string;
@@ -25,6 +25,8 @@ export function Combobox({
   disabled?: boolean;
   clearable?: boolean;
   className?: string;
+  /** Required when there is no <label> pointing at `id` (role="combobox" isn't named by its text). */
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
@@ -38,6 +40,7 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           aria-invalid={invalid}
+          aria-label={ariaLabel}
           disabled={disabled}
           className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}
         >

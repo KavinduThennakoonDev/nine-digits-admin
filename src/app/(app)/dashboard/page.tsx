@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlarmClock, Building2, Handshake, Inbox, Sparkles, Target } from "lucide-react";
+import { AlarmClock, ArrowDownRight, ArrowUpRight, Building2, FileWarning, Handshake, Inbox, Scale, Sparkles, Target } from "lucide-react";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageContainer, PageHeader } from "@/components/layout/page-header";
@@ -14,7 +14,9 @@ import { getCrmStats, getRecentActivity, getRecentLeads, getUpcomingFollowUps } 
 import { ActivityFeed } from "@/features/dashboard/components/activity-feed";
 import { FollowUpList } from "@/features/dashboard/components/follow-up-list";
 import { LEAD_SOURCE_OPTIONS, LEAD_STATUS_OPTIONS, labelOf } from "@/lib/constants";
-import { timeAgo } from "@/lib/format";
+import { formatDay, timeAgo } from "@/lib/format";
+import { formatMoney } from "@/lib/money";
+import { getFinanceOverview, getOverdueInvoices } from "@/features/finance/queries";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -24,11 +26,14 @@ export default async function DashboardPage() {
 
   const seesLeads = can(user, "leads.view");
   const seesClients = can(user, "clients.view");
-  const [stats, activity, followUps, recentLeads] = await Promise.all([
+  const seesFinance = can(user, "finance.view");
+  const [stats, activity, followUps, recentLeads, finance, overdueInvoices] = await Promise.all([
     getCrmStats(user),
     getRecentActivity(user),
     seesLeads ? getUpcomingFollowUps(user) : [],
     seesLeads ? getRecentLeads(user) : [],
+    seesFinance ? getFinanceOverview("this_month") : null,
+    seesFinance ? getOverdueInvoices(5) : [],
   ]);
   const firstName = user.name.split(" ")[0];
   // Vercel runs in UTC — greet in the agency's timezone.
@@ -57,6 +62,23 @@ export default async function DashboardPage() {
                 icon={AlarmClock} className={stats.overdue ? "border-destructive/30" : undefined} />
             </>
           ) : null}
+        </div>
+      ) : null}
+
+      {finance ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Revenue this month" value={formatMoney(finance.revenue, finance.base)} icon={ArrowDownRight}
+            hint={<Link href="/finance" className="hover:underline">Finance overview →</Link>} />
+          <StatCard label="Expenses this month" value={formatMoney(finance.expenses, finance.base)} icon={ArrowUpRight}
+            hint={`${finance.expenseCount} recorded`} />
+          <StatCard label="Net profit this month" icon={Scale}
+            value={<span className={finance.profit < 0 ? "text-destructive" : undefined}>{formatMoney(finance.profit, finance.base)}</span>}
+            hint={finance.margin === null ? "No revenue yet this month" : `${Math.round(finance.margin * 100)}% margin`} />
+          <StatCard label="Outstanding payments" value={formatMoney(finance.receivables.outstanding, finance.base)} icon={FileWarning}
+            className={finance.receivables.overdueCount ? "border-destructive/30" : undefined}
+            hint={finance.receivables.overdueCount
+              ? <Link href="/finance/invoices?status=overdue" className="text-destructive hover:underline">{finance.receivables.overdueCount} overdue · {formatMoney(finance.receivables.overdue, finance.base)}</Link>
+              : "Nothing overdue"} />
         </div>
       ) : null}
 
@@ -109,6 +131,30 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent><ActivityFeed items={activity.items} /></CardContent>
         </Card>
+        <div className="space-y-4">
+        {seesFinance && overdueInvoices.length ? (
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle>Overdue invoices</CardTitle>
+              <CardDescription>Follow up on these payments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="-mx-2 divide-y">
+                {overdueInvoices.map((i) => (
+                  <li key={i.id}>
+                    <Link href={`/finance/invoices/${i.id}`} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{i.clientName}</span>
+                        <span className="block text-xs text-muted-foreground">due {formatDay(i.dueDate)}</span>
+                      </span>
+                      <span className="tabular text-sm font-medium text-destructive">{formatMoney(i.balance, i.currency)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null}
         <Card>
           <CardHeader>
             <CardTitle>Quick actions</CardTitle>
@@ -118,9 +164,11 @@ export default async function DashboardPage() {
             {can(user, "leads.create") ? <Button variant="outline" asChild className="justify-start"><Link href="/leads"><Target /> Add or find a lead</Link></Button> : null}
             {seesClients ? <Button variant="outline" asChild className="justify-start"><Link href="/clients"><Building2 /> Clients</Link></Button> : null}
             {can(user, "leads.view") ? <Button variant="outline" asChild className="justify-start"><Link href="/leads?status=negotiation"><Handshake /> Deals in negotiation</Link></Button> : null}
+            {can(user, "invoices.manage") ? <Button variant="outline" asChild className="justify-start"><Link href="/finance/invoices/new">Create an invoice</Link></Button> : null}
             <Button variant="outline" asChild className="justify-start"><Link href="/account">Account & password</Link></Button>
           </CardContent>
         </Card>
+        </div>
       </div>
     </PageContainer>
   );

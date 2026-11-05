@@ -17,6 +17,11 @@ import { Client } from "../src/server/db/models/client";
 import { ClientActivity } from "../src/server/db/models/client-activity";
 import { Lead } from "../src/server/db/models/lead";
 import { LeadActivity } from "../src/server/db/models/lead-activity";
+import { Counter } from "../src/server/db/models/counter";
+import { Invoice } from "../src/server/db/models/invoice";
+import { Payment } from "../src/server/db/models/payment";
+import { Expense } from "../src/server/db/models/expense";
+import { ExpenseCategory } from "../src/server/db/models/expense-category";
 import { SUPER_ADMIN_SLUG, SYSTEM_ROLES } from "../src/lib/permissions";
 
 async function main() {
@@ -25,7 +30,7 @@ async function main() {
   await mongoose.connect(uri, { dbName: DB_NAME });
   console.log(`Connected to ${mongoose.connection.name}`);
 
-  for (const model of [Role, User, Session, Settings, ActivityLog, Service, Client, ClientActivity, Lead, LeadActivity]) {
+  for (const model of [Role, User, Session, Settings, ActivityLog, Service, Client, ClientActivity, Lead, LeadActivity, Counter, Invoice, Payment, Expense, ExpenseCategory]) {
     await model.syncIndexes();
   }
   console.log("Indexes synced");
@@ -58,6 +63,12 @@ async function main() {
     ];
     await Service.insertMany(starter.map(([name, category, billing]) => ({ name, category, billing })));
     console.log(`Added ${starter.length} starter services`);
+  }
+
+  if ((await ExpenseCategory.estimatedDocumentCount()) === 0) {
+    const cats = ["Software & Tools", "Advertising Spend", "Salaries", "Freelancers", "Office & Utilities", "Equipment", "Travel", "Other"];
+    await ExpenseCategory.insertMany(cats.map((name) => ({ name })));
+    console.log(`Added ${cats.length} expense categories`);
   }
 
   if ((await User.estimatedDocumentCount()) === 0) {

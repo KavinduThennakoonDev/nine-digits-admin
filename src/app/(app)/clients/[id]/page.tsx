@@ -18,15 +18,34 @@ import { ClientActivityComposer } from "@/features/clients/components/client-act
 import { CLIENT_STATUS_OPTIONS, CLIENT_TYPE_OPTIONS, LEAD_SOURCE_OPTIONS, labelOf } from "@/lib/constants";
 import { formatDate, formatDay } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
+import { first } from "@/lib/list-params";
+import { StatCard } from "@/components/feedback/stat-card";
+import { getClientFinanceSummary } from "@/features/finance/queries";
+import { getClientOptionsForFinance, getOpenInvoices, listInvoices } from "@/features/invoices/queries";
+import { listPayments } from "@/features/payments/queries";
+import { listCategories, listExpenses } from "@/features/expenses/queries";
+import { InvoicesView } from "@/features/invoices/components/invoices-view";
+import { PaymentsView } from "@/features/payments/components/payments-view";
+import { ExpensesView } from "@/features/expenses/components/expenses-view";
+import { BillingTabs, type BillingTab } from "@/features/clients/components/billing-tabs";
 
 export const metadata: Metadata = { title: "Client" };
 
-export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
   if (!can(user, "clients.view")) return <AccessDenied />;
   const { id } = await params;
   const client = await getClient(id, user);
   if (!client) notFound();
+
+  const sp = await searchParams;
+  const billingTabs = ([
+    can(user, "invoices.view") && "invoices", can(user, "payments.view") && "payments", can(user, "expenses.view") && "expenses",
+  ].filter(Boolean)) as BillingTab[];
+  const requested = first(sp.tab) as BillingTab | undefined;
+  const tab: BillingTab | null = requested && billingTabs.includes(requested) ? requested : billingTabs[0] ?? null;
+  const billing = tab ? await loadBilling(tab, client.id, sp) : null;
+  const finance = billingTabs.length ? await getClientFinanceSummary(client.id) : null;
 
   const [timeline, users, services] = await Promise.all([
     getClientTimeline(client.id, client.sourceLead?.id ?? null),
@@ -125,6 +144,52 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
       </div>
+
+      {finance && tab && billing ? (
+        <section className="space-y-4" aria-labelledby="billing-heading">
+          <h2 id="billing-heading" className="text-lg font-semibold tracking-tight">Billing</h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {can(user, "invoices.view") ? <StatCard label="Billed" value={formatMoney(finance.billed, finance.base)} hint="Issued invoices" /> : null}
+            {can(user, "payments.view") ? <StatCard label="Received" value={formatMoney(finance.received, finance.base)} hint="Completed payments" /> : null}
+            {can(user, "invoices.view") ? (
+              <StatCard label="Outstanding" value={formatMoney(finance.outstanding, finance.base)}
+                hint={finance.overdue ? <span className="text-destructive">{formatMoney(finance.overdue, finance.base)} overdue</span> : "Nothing overdue"}
+                className={finance.overdue ? "border-destructive/30" : undefined} />
+            ) : null}
+            {can(user, "expenses.view") ? <StatCard label="Client costs" value={formatMoney(finance.expenses, finance.base)} hint="Expenses linked to this client" /> : null}
+          </div>
+          <BillingTabs tabs={billingTabs} active={tab}>
+            {billing.kind === "invoices" ? (
+              <InvoicesView data={billing.data} clients={[]} embedded newHref={`/finance/invoices/new?client=${client.id}`} />
+            ) : billing.kind === "payments" ? (
+              <PaymentsView data={billing.data} options={billing.options} embedded presetClientId={client.id} />
+            ) : (
+              <ExpensesView data={billing.data} totalBase={billing.data.totalBase} base={billing.data.base}
+                categories={billing.categories} options={billing.options} embedded presetClientId={client.id} />
+            )}
+          </BillingTabs>
+        </section>
+      ) : null}
     </PageContainer>
   );
+}
+
+type SP = Record<string, string | string[] | undefined>;
+
+/** Fetches only the active billing tab, scoped to this client. */
+async function loadBilling(tab: BillingTab, clientId: string, sp: SP) {
+  if (tab === "invoices") return { kind: "invoices" as const, data: await listInvoices({ ...sp, client: clientId }) };
+  if (tab === "payments") {
+    const data = await listPayments(sp, clientId);
+    const [clients, openInvoices] = await Promise.all([
+      getClientOptionsForFinance(),
+      getOpenInvoices(clientId, data.rows.map((r) => r.invoiceId).filter((v): v is string => !!v)),
+    ]);
+    return { kind: "payments" as const, data, options: { clients, openInvoices } };
+  }
+  const [data, categories, clients] = await Promise.all([listExpenses(sp, clientId), listCategories(), getClientOptionsForFinance()]);
+  return {
+    kind: "expenses" as const, data, categories,
+    options: { categories: categories.map((c) => ({ value: c.id, label: c.name, active: c.isActive })), clients },
+  };
 }

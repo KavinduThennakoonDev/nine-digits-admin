@@ -115,8 +115,8 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 13%);
   --ring: oklch(0.7 0.2 45);
-  --chart-1: oklch(0.7 0.2 45);
-  --chart-2: oklch(0.68 0.13 250);
+  --chart-1: oklch(0.64 0.19 44); /* validated vs dark surface (dataviz check) */
+  --chart-2: oklch(0.62 0.13 250);
   --chart-3: oklch(0.72 0.14 165);
   --chart-4: oklch(0.8 0.14 85);
   --chart-5: oklch(0.68 0.16 320);
@@ -147,4 +147,13 @@
 
 @layer utilities {
   .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Printing (e.g. invoices): hide app chrome, print the document only. */
+@media print {
+  [data-slot="sidebar"], [data-slot="sidebar-gap"], [data-slot="sidebar-container"], [data-slot="sidebar-rail"], .print-hidden {
+    display: none !important;
+  }
+  body { background: white !important; }
+  @page { margin: 14mm; }
 }

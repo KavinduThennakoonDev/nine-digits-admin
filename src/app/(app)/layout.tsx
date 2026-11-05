@@ -45,7 +45,7 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <SidebarInset className="min-w-0">
           <AppTopbar />
-          <main className="flex-1">{children}</main>
+          <div className="flex-1">{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </SessionProvider>

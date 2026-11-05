@@ -50,7 +50,10 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  // The longest matching nav href wins, so "/finance" isn't active on "/finance/invoices".
+                  const best = groups.flatMap((g) => g.items).filter((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))
+                    .sort((a, b) => b.href.length - a.href.length)[0];
+                  const active = best?.href === item.href;
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton asChild isActive={active} tooltip={item.title}>

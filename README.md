@@ -57,3 +57,13 @@ src/
 | Leads | Calls (outcome and duration), WhatsApp, email, meetings and notes on one timeline · follow-up reminders with overdue highlighting · quick status changes · conversion to client · CSV/Excel export of the current filters (`/api/export/leads`) |
 | Clients | Profile with contact, engagement, services, retainer and contract dates · activity and communication timeline (includes the original lead's history) · archive/restore |
 | Services | Catalogue with billing type and base price, used by clients and leads |
+| Finance | Invoices (line items, discount, tax, sequential `ND-YYYY-0001` numbers, print/PDF) · payments (partial, multiple, refunds) · expenses with custom categories · overview with revenue vs expenses, P&L by month/quarter/year |
+
+### Finance rules
+
+- Invoices, payments and expenses are separate collections. Revenue means **completed payments**; issued invoices are tracked as receivables.
+- An invoice's `amountPaid` and status are recalculated from its payments, in a transaction, every time a payment is recorded, edited or refunded. Overpaying is rejected.
+- Payments are never deleted, only marked refunded or failed. Invoices with payments can't be voided until those payments are refunded, and only drafts can be deleted.
+- Once an invoice has payments, its amounts, client and currency are locked; only the due date, notes and terms can change.
+- "Overdue" is derived (unpaid and past the due date), never stored.
+- Every financial record stores its own `usdToLkr` rate snapshot. Reports convert to the reporting currency (Settings) with that snapshot, so changing the rate never changes historic figures.
