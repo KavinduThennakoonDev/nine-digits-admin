@@ -34,17 +34,8 @@ export const LEAD_SOURCE_OPTIONS = opts<LeadSource>([
   ["referral", "Referral"], ["google_ads", "Google Ads"], ["other", "Other"],
 ]);
 
-export const LEAD_STATUSES = [
-  "new", "not_contacted", "contacted", "interested", "follow_up", "negotiation", "converted", "not_interested", "lost",
-] as const;
-export type LeadStatus = (typeof LEAD_STATUSES)[number];
-export const LEAD_STATUS_OPTIONS = opts<LeadStatus>([
-  ["new", "New"], ["not_contacted", "Not contacted"], ["contacted", "Contacted"], ["interested", "Interested"],
-  ["follow_up", "Follow-up required"], ["negotiation", "Negotiation"], ["converted", "Converted"],
-  ["not_interested", "Not interested"], ["lost", "Lost"],
-]);
-/** Statuses where the lead is finished and no follow-up is expected. */
-export const CLOSED_LEAD_STATUSES: LeadStatus[] = ["converted", "not_interested", "lost"];
+/** Lead statuses are configurable in Settings — see lib/lead-statuses.ts. */
+export type LeadStatus = string;
 
 export const LEAD_ACTIVITY_TYPES = ["call", "whatsapp", "email", "meeting", "note", "status_change", "assignment", "conversion", "system"] as const;
 export type LeadActivityType = (typeof LEAD_ACTIVITY_TYPES)[number];
@@ -88,3 +79,38 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const PAYMENT_STATUS_OPTIONS = opts<PaymentStatus>([
   ["completed", "Completed"], ["pending", "Pending"], ["failed", "Failed"], ["refunded", "Refunded"],
 ]);
+
+/* ── Work ────────────────────────────────────────────────── */
+export const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+export const PRIORITY_OPTIONS = opts<Priority>([["low", "Low"], ["medium", "Medium"], ["high", "High"], ["urgent", "Urgent"]]);
+
+export const PROJECT_STATUSES = ["planning", "in_progress", "on_hold", "completed", "cancelled"] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+export const PROJECT_STATUS_OPTIONS = opts<ProjectStatus>([
+  ["planning", "Planning"], ["in_progress", "In progress"], ["on_hold", "On hold"], ["completed", "Completed"], ["cancelled", "Cancelled"],
+]);
+export const OPEN_PROJECT_STATUSES: ProjectStatus[] = ["planning", "in_progress", "on_hold"];
+
+export const TASK_STATUSES = ["todo", "in_progress", "review", "done", "cancelled"] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+export const TASK_STATUS_OPTIONS = opts<TaskStatus>([
+  ["todo", "To do"], ["in_progress", "In progress"], ["review", "In review"], ["done", "Done"], ["cancelled", "Cancelled"],
+]);
+export const OPEN_TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "review"];
+
+/* ── Notifications ───────────────────────────────────────── */
+export const NOTIFICATION_TYPES = [
+  "lead_new", "lead_assigned", "followup_due", "followup_overdue", "payment_received", "invoice_overdue", "project_deadline", "task_assigned",
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+export const NOTIFICATION_TYPE_META: Record<NotificationType, { label: string; description: string }> = {
+  lead_new: { label: "New leads", description: "A lead is added (assigned to you, or unassigned if you assign leads)" },
+  lead_assigned: { label: "Leads assigned to me", description: "Someone assigns a lead to you" },
+  followup_due: { label: "Upcoming follow-ups", description: "A follow-up on your lead is due within 24 hours" },
+  followup_overdue: { label: "Overdue follow-ups", description: "A follow-up on your lead has passed" },
+  payment_received: { label: "Client payments", description: "A client payment is recorded" },
+  invoice_overdue: { label: "Overdue invoices", description: "An issued invoice passes its due date" },
+  project_deadline: { label: "Project deadlines", description: "A project you're on is due within 3 days" },
+  task_assigned: { label: "Assigned tasks", description: "A task is assigned to you" },
+};

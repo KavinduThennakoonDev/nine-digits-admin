@@ -56,3 +56,30 @@ export function periodMatch(period: Period) {
   const { from, to } = periodRange(period);
   return from && to ? { $gte: from, $lt: to } : undefined;
 }
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Date range from URL params: ?period=<preset> or ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive days,
+ * agency time). Falls back to `fallback`. `to` is exclusive in the returned range.
+ */
+export function resolveRange(
+  sp: Record<string, string | string[] | undefined>,
+  fallback: Period = "this_month",
+): { from: Date | null; to: Date | null; label: string; key: string; custom: boolean } {
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const f = one(sp.from);
+  const t = one(sp.to);
+  if (f && t && DAY.test(f) && DAY.test(t) && f <= t) {
+    const from = new Date(`${f}T00:00:00${OFFSET}`);
+    const to = new Date(new Date(`${t}T00:00:00${OFFSET}`).getTime() + 86_400_000);
+    return { from, to, label: `${f} to ${t}`, key: `${f}_${t}`, custom: true };
+  }
+  const p = one(sp.period);
+  const period = isPeriod(p) ? p : fallback;
+  const { from, to } = periodRange(period);
+  return { from, to, label: PERIOD_OPTIONS.find((o) => o.value === period)!.label.toLowerCase(), key: period, custom: false };
+}
+
+/** Mongo condition for a resolved range (undefined = all time). */
+export const rangeMatch = (r: { from: Date | null; to: Date | null }) => (r.from && r.to ? { $gte: r.from, $lt: r.to } : undefined);

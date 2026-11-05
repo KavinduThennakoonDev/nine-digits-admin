@@ -6,6 +6,7 @@ import { connectDB } from "@/server/db/connect";
 import { Expense } from "@/server/db/models/expense";
 import { ExpenseCategory } from "@/server/db/models/expense-category";
 import { Client } from "@/server/db/models/client";
+import { Project } from "@/server/db/models/project";
 import { authorize } from "@/server/auth/dal";
 import { audit, diff } from "@/server/services/audit";
 import { getFx } from "@/server/services/fx";
@@ -27,10 +28,13 @@ export async function saveExpenseAction(input: ExpenseInput): Promise<ActionResu
     if (data.clientId && !(await Client.exists({ _id: data.clientId, deletedAt: null }))) {
       throw new AppError("VALIDATION", "That client no longer exists.", { clientId: ["Select another client."] });
     }
+    if (data.projectId && !(await Project.exists({ _id: data.projectId, deletedAt: null }))) {
+      throw new AppError("VALIDATION", "That project no longer exists.", { projectId: ["Select another project."] });
+    }
     const amount = amountToMinor(data.amount)!;
     const fields = {
       name: data.name, categoryId: data.categoryId, amount, currency: data.currency, expenseDate: dayToDate(data.expenseDate)!,
-      method: data.method, clientId: idOrNull(data.clientId), description: data.description, receiptRef: data.receiptRef,
+      method: data.method, clientId: idOrNull(data.clientId), projectId: idOrNull(data.projectId), description: data.description, receiptRef: data.receiptRef,
       updatedBy: actor.id,
     };
 

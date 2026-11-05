@@ -6,7 +6,10 @@ import { AppShellSkeleton } from "@/components/layout/app-shell-skeleton";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { ForcedPasswordChange } from "@/features/auth/components/forced-password-change";
-import { requireUser } from "@/server/auth/dal";
+import { can, requireUser } from "@/server/auth/dal";
+import { listTables } from "@/features/tables/queries";
+import { LeadStatusProvider } from "@/components/providers/lead-status-provider";
+import { getLeadStatuses } from "@/server/services/lead-statuses";
 
 // Every route here reads the session at request time.
 export const instant = false;
@@ -29,6 +32,11 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const [tables, leadStatuses] = await Promise.all([
+    can(user, "tables.view") ? listTables(user) : [],
+    getLeadStatuses(),
+  ]);
+
   return (
     <SessionProvider
       user={{
@@ -41,13 +49,15 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
         permissions: user.permissions,
       }}
     >
+      <LeadStatusProvider statuses={leadStatuses}>
       <SidebarProvider>
-        <AppSidebar />
+        <AppSidebar tables={tables.map((t) => ({ name: t.name, slug: t.slug, icon: t.icon }))} />
         <SidebarInset className="min-w-0">
           <AppTopbar />
           <div className="flex-1">{children}</div>
         </SidebarInset>
       </SidebarProvider>
+      </LeadStatusProvider>
     </SessionProvider>
   );
 }

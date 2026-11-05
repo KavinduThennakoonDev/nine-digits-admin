@@ -22,6 +22,14 @@ import { Invoice } from "../src/server/db/models/invoice";
 import { Payment } from "../src/server/db/models/payment";
 import { Expense } from "../src/server/db/models/expense";
 import { ExpenseCategory } from "../src/server/db/models/expense-category";
+import { DynamicTable } from "../src/server/db/models/dynamic-table";
+import { DynamicRecord } from "../src/server/db/models/dynamic-record";
+import { Project } from "../src/server/db/models/project";
+import { Task } from "../src/server/db/models/task";
+import { TaskComment } from "../src/server/db/models/task-comment";
+import { WorkActivity } from "../src/server/db/models/work-activity";
+import { Notification } from "../src/server/db/models/notification";
+import { RateLimit } from "../src/server/db/models/rate-limit";
 import { SUPER_ADMIN_SLUG, SYSTEM_ROLES } from "../src/lib/permissions";
 
 async function main() {
@@ -30,7 +38,7 @@ async function main() {
   await mongoose.connect(uri, { dbName: DB_NAME });
   console.log(`Connected to ${mongoose.connection.name}`);
 
-  for (const model of [Role, User, Session, Settings, ActivityLog, Service, Client, ClientActivity, Lead, LeadActivity, Counter, Invoice, Payment, Expense, ExpenseCategory]) {
+  for (const model of [Role, User, Session, Settings, ActivityLog, Service, Client, ClientActivity, Lead, LeadActivity, Counter, Invoice, Payment, Expense, ExpenseCategory, DynamicTable, DynamicRecord, Project, Task, TaskComment, WorkActivity, Notification, RateLimit]) {
     await model.syncIndexes();
   }
   console.log("Indexes synced");

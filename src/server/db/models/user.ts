@@ -22,6 +22,8 @@ const userSchema = new Schema(
     /** Bump to invalidate every session of this user (password reset, suspension). */
     sessionVersion: { type: Number, default: 0 },
     mustChangePassword: { type: Boolean, default: false },
+    /** Notification types this person has turned off. */
+    mutedNotifications: { type: [String], default: [] },
     failedLoginCount: { type: Number, default: 0, select: false },
     lockedUntil: { type: Date, default: null, select: false },
     lastLoginAt: { type: Date, default: null },

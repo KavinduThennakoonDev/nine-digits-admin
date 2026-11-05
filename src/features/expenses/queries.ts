@@ -4,6 +4,7 @@ import { connectDB } from "@/server/db/connect";
 import { Expense, type ExpenseDoc } from "@/server/db/models/expense";
 import { ExpenseCategory } from "@/server/db/models/expense-category";
 import { Client } from "@/server/db/models/client";
+import { Project } from "@/server/db/models/project";
 import { authorize } from "@/server/auth/dal";
 import { getFx, toBaseExpr } from "@/server/services/fx";
 import { escapeRegex, first, parseListParams, type Paginated, type SearchParams } from "@/lib/list-params";
@@ -21,11 +22,12 @@ export type ExpenseRow = {
   expenseDate: string;
   method: PaymentMethod;
   clientName: string | null;
+  projectName: string | null;
   receiptRef: string;
   description: string;
   form: {
     id: string; name: string; categoryId: string; amount: string; currency: Currency; expenseDate: string;
-    method: PaymentMethod; clientId: string; description: string; receiptRef: string;
+    method: PaymentMethod; clientId: string; projectId: string; description: string; receiptRef: string;
   };
 };
 
@@ -37,6 +39,8 @@ export function buildExpenseFilter(sp: SearchParams, fixedClientId?: string): Qu
   if (category && Types.ObjectId.isValid(category)) filter.categoryId = new Types.ObjectId(category);
   const client = fixedClientId ?? first(sp.client);
   if (client && Types.ObjectId.isValid(client)) filter.clientId = new Types.ObjectId(client);
+  const project = first(sp.project);
+  if (project && Types.ObjectId.isValid(project)) filter.projectId = new Types.ObjectId(project);
   const method = first(sp.method);
   if (method && (PAYMENT_METHODS as readonly string[]).includes(method)) filter.method = method as PaymentMethod;
   const period = first(sp.period);
@@ -65,10 +69,12 @@ export async function listExpenses(sp: SearchParams, fixedClientId?: string): Pr
     Expense.countDocuments(filter),
     Expense.aggregate<{ total: number }>([{ $match: filter }, { $group: { _id: null, total: { $sum: toBaseExpr(base) } } }]),
   ]);
-  const [cats, clients] = await Promise.all([
+  const [cats, clients, projects] = await Promise.all([
     ExpenseCategory.find({ _id: { $in: docs.map((d) => d.categoryId) } }, { name: 1 }).lean(),
     Client.find({ _id: { $in: docs.map((d) => d.clientId).filter(Boolean) } }, { clientName: 1 }).lean(),
+    Project.find({ _id: { $in: docs.map((d) => d.projectId).filter(Boolean) } }, { name: 1 }).lean(),
   ]);
+  const projMap = new Map(projects.map((p) => [String(p._id), p.name]));
   const catMap = new Map(cats.map((c) => [String(c._id), c.name]));
   const cliMap = new Map(clients.map((c) => [String(c._id), c.clientName]));
 
@@ -84,12 +90,13 @@ export async function listExpenses(sp: SearchParams, fixedClientId?: string): Pr
       expenseDate: e.expenseDate.toISOString(),
       method: e.method as PaymentMethod,
       clientName: e.clientId ? cliMap.get(String(e.clientId)) ?? null : null,
+      projectName: e.projectId ? projMap.get(String(e.projectId)) ?? null : null,
       receiptRef: e.receiptRef ?? "",
       description: e.description ?? "",
       form: {
         id: String(e._id), name: e.name, categoryId: String(e.categoryId), amount: minorToAmount(e.amount),
         currency: e.currency as Currency, expenseDate: toDayString(e.expenseDate), method: e.method as PaymentMethod,
-        clientId: e.clientId ? String(e.clientId) : "", description: e.description ?? "", receiptRef: e.receiptRef ?? "",
+        clientId: e.clientId ? String(e.clientId) : "", projectId: e.projectId ? String(e.projectId) : "", description: e.description ?? "", receiptRef: e.receiptRef ?? "",
       },
     })),
     total,

@@ -11,11 +11,11 @@ import { DataTableReset, DataTableSearch, DataTableSelectFilter } from "@/compon
 import { DataTableSegments } from "@/components/data-table/view-toggle";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { StatusBadge } from "@/components/feedback/status-badge";
-import { LEAD_STATUS_TONE } from "@/components/feedback/tones";
+import { useLeadStatuses } from "@/components/providers/lead-status-provider";
 import { PageHeader } from "@/components/layout/page-header";
 import { UserAvatar } from "@/components/layout/user-avatar";
 import { useCan } from "@/components/providers/session-provider";
-import { LEAD_SOURCE_OPTIONS, LEAD_STATUS_OPTIONS, labelOf } from "@/lib/constants";
+import { LEAD_SOURCE_OPTIONS, labelOf } from "@/lib/constants";
 import { formatDay } from "@/lib/format";
 import { RelativeTime } from "@/components/feedback/relative-time";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,7 @@ export function LeadsView({
   const can = useCan();
   const [creating, setCreating] = useState(false);
   const canSeeAll = can("leads.view_all");
+  const ls = useLeadStatuses();
 
   const exportHref = (format: "csv" | "xlsx") => {
     const p = new URLSearchParams(searchParams.toString());
@@ -74,7 +75,7 @@ export function LeadsView({
     col.accessor("status", {
       header: "Status",
       meta: { sortKey: "status", label: "Status" },
-      cell: ({ getValue }) => <StatusBadge tone={LEAD_STATUS_TONE[getValue()]}>{labelOf(LEAD_STATUS_OPTIONS, getValue())}</StatusBadge>,
+      cell: ({ getValue }) => <StatusBadge tone={ls.tone(getValue())}>{ls.label(getValue())}</StatusBadge>,
     }),
     col.accessor("source", {
       header: "Source",
@@ -120,7 +121,7 @@ export function LeadsView({
       meta: { sortKey: "leadDate", label: "Lead date", cellClassName: "text-muted-foreground" },
       cell: ({ getValue }) => formatDay(getValue()),
     }),
-  ], []);
+  ], [ls]);
 
   return (
     <>
@@ -177,7 +178,7 @@ export function LeadsView({
               { value: "none", label: "No follow-up" },
             ]} />
             <DataTableSearch placeholder="Search name, company, phone, email…" />
-            <DataTableSelectFilter param="status" label="Statuses" options={[{ value: "open", label: "Open (not closed)" }, ...LEAD_STATUS_OPTIONS]} />
+            <DataTableSelectFilter param="status" label="Statuses" options={[{ value: "open", label: "Open (not closed)" }, ...ls.options]} />
             <DataTableSelectFilter param="source" label="Sources" options={LEAD_SOURCE_OPTIONS} />
             {canSeeAll ? (
               <DataTableSelectFilter param="assignee" label="Assignees" options={[

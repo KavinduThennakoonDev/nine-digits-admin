@@ -10,9 +10,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { StatusBadge } from "@/components/feedback/status-badge";
-import { LEAD_STATUS_TONE } from "@/components/feedback/tones";
 import { useCan } from "@/components/providers/session-provider";
-import { LEAD_STATUS_OPTIONS, labelOf, type LeadStatus } from "@/lib/constants";
+import { useLeadStatuses } from "@/components/providers/lead-status-provider";
+import type { LeadStatus } from "@/lib/constants";
 import { deleteLeadAction, setLeadArchivedAction, setLeadStatusAction } from "../actions";
 import type { LeadInput } from "../schemas";
 import { ConvertLeadDialog, type ConvertSource } from "./convert-lead-dialog";
@@ -22,7 +22,8 @@ import { LeadFormSheet, type LeadFormOptions } from "./lead-form-sheet";
 export function LeadStatusSwitcher({ id, status }: { id: string; status: LeadStatus }) {
   const can = useCan();
   const [pending, startTransition] = useTransition();
-  const badge = <StatusBadge tone={LEAD_STATUS_TONE[status]}>{labelOf(LEAD_STATUS_OPTIONS, status)}</StatusBadge>;
+  const ls = useLeadStatuses();
+  const badge = <StatusBadge tone={ls.tone(status)}>{ls.label(status)}</StatusBadge>;
   if (status === "converted" || !can("leads.update")) return badge;
   return (
     <DropdownMenu>
@@ -35,9 +36,9 @@ export function LeadStatusSwitcher({ id, status }: { id: string; status: LeadSta
         <DropdownMenuLabel>Change status</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={status} onValueChange={(v) => startTransition(async () => {
           const r = await setLeadStatusAction(id, v);
-          if (r.ok) toast.success(`Status set to ${labelOf(LEAD_STATUS_OPTIONS, v)}.`); else toast.error(r.error.message);
+          if (r.ok) toast.success(`Status set to ${ls.label(v)}.`); else toast.error(r.error.message);
         })}>
-          {LEAD_STATUS_OPTIONS.filter((o) => o.value !== "converted").map((o) => (
+          {ls.editableOptions.map((o) => (
             <DropdownMenuRadioItem key={o.value} value={o.value}>{o.label}</DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

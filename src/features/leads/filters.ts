@@ -4,13 +4,18 @@ import type { LeadDoc } from "@/server/db/models/lead";
 import { assignedScope } from "@/server/auth/scope";
 import type { CurrentUser } from "@/server/auth/dal";
 import { escapeRegex, first, type SearchParams } from "@/lib/list-params";
-import { CLOSED_LEAD_STATUSES, LEAD_SOURCES, LEAD_STATUSES, type LeadSource, type LeadStatus } from "@/lib/constants";
+import { LEAD_SOURCES, type LeadSource } from "@/lib/constants";
+import { getClosedLeadStatuses, getLeadStatuses } from "@/server/services/lead-statuses";
 import { startOfAgencyDay } from "@/lib/format";
 
-export const OPEN_STATUS_FILTER = { $nin: CLOSED_LEAD_STATUSES };
+/** Mongo condition matching leads that are still being worked. */
+export async function openStatusFilter() {
+  return { $nin: await getClosedLeadStatuses() };
+}
 
 /** Shared by the leads list and the CSV/Excel export so both always match. */
-export function buildLeadFilter(sp: SearchParams, user: CurrentUser): QueryFilter<LeadDoc> {
+export async function buildLeadFilter(sp: SearchParams, user: CurrentUser): Promise<QueryFilter<LeadDoc>> {
+  const [statuses, OPEN_STATUS_FILTER] = await Promise.all([getLeadStatuses(), openStatusFilter()]);
   const archived = first(sp.view) === "archived";
   const filter: QueryFilter<LeadDoc> = {
     deletedAt: null,
@@ -25,7 +30,7 @@ export function buildLeadFilter(sp: SearchParams, user: CurrentUser): QueryFilte
   }
   const status = first(sp.status);
   if (status === "open") filter.status = OPEN_STATUS_FILTER as never;
-  else if (status && (LEAD_STATUSES as readonly string[]).includes(status)) filter.status = status as LeadStatus;
+  else if (status && statuses.some((s) => s.key === status)) filter.status = status;
   const source = first(sp.source);
   if (source && (LEAD_SOURCES as readonly string[]).includes(source)) filter.source = source as LeadSource;
   const country = first(sp.country);

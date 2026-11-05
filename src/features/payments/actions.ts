@@ -10,6 +10,7 @@ import { Client } from "@/server/db/models/client";
 import { ClientActivity } from "@/server/db/models/client-activity";
 import { authorize } from "@/server/auth/dal";
 import { audit } from "@/server/services/audit";
+import { notify, usersWith } from "@/server/services/notify";
 import { getFx } from "@/server/services/fx";
 import { recomputeInvoice } from "@/server/services/invoicing";
 import { AppError } from "@/server/errors";
@@ -76,6 +77,13 @@ export async function savePaymentAction(input: PaymentInput): Promise<ActionResu
         return String(payment._id);
       });
       await audit({ userId: actor.id, action: "create", module: "payments", recordId: id, summary: `Recorded payment ${formatMoney(amount, data.currency)} from ${client.clientName}`, after: { amount, currency: data.currency, status: data.status } });
+      if (data.status === "completed") {
+        await notify({
+          type: "payment_received", actorId: actor.id, userIds: await usersWith("payments.view"),
+          title: `Payment received: ${formatMoney(amount, data.currency)}`, body: client.clientName,
+          link: data.invoiceId ? `/finance/invoices/${data.invoiceId}` : "/finance/payments",
+        });
+      }
       refresh();
       return { id };
     }

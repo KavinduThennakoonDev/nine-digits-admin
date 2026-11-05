@@ -55,7 +55,7 @@ export function ExpensesView({
       cell: ({ row }) => (
         <div className="min-w-0">
           <p className="truncate font-medium">{row.original.name}</p>
-          <p className="truncate text-xs text-muted-foreground">{row.original.categoryName}{row.original.clientName ? ` · ${row.original.clientName}` : ""}</p>
+          <p className="truncate text-xs text-muted-foreground">{[row.original.categoryName, row.original.clientName, row.original.projectName].filter(Boolean).join(" · ")}</p>
         </div>
       ),
     }),

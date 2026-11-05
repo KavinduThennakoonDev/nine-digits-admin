@@ -38,6 +38,7 @@ export function ServicesView({ services }: { services: ServiceRow[] }) {
                 <TableHead className="text-right text-xs text-muted-foreground">Base price</TableHead>
                 <TableHead className="text-right text-xs text-muted-foreground">Clients</TableHead>
                 <TableHead className="text-right text-xs text-muted-foreground">Leads</TableHead>
+                <TableHead className="text-right text-xs text-muted-foreground">Invoiced</TableHead>
                 <TableHead className="text-xs text-muted-foreground">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -53,6 +54,7 @@ export function ServicesView({ services }: { services: ServiceRow[] }) {
                   <TableCell className="tabular text-right">{s.priceMinor ? formatMoney(s.priceMinor, s.currency) : "—"}</TableCell>
                   <TableCell className="tabular text-right">{s.clientCount}</TableCell>
                   <TableCell className="tabular text-right">{s.leadCount}</TableCell>
+                  <TableCell className="tabular text-right">{s.invoicedBase ? formatMoney(s.invoicedBase, s.base) : "—"}</TableCell>
                   <TableCell>{s.isActive ? <StatusBadge tone="success">Active</StatusBadge> : <StatusBadge>Inactive</StatusBadge>}</TableCell>
                 </TableRow>
               ))}

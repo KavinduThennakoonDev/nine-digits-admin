@@ -21,6 +21,9 @@ import { formatMoney } from "@/lib/money";
 import { first } from "@/lib/list-params";
 import { StatCard } from "@/components/feedback/stat-card";
 import { getClientFinanceSummary } from "@/features/finance/queries";
+import { getClientProjects } from "@/features/projects/queries";
+import { PROJECT_STATUS_TONE } from "@/components/feedback/tones";
+import { PROJECT_STATUS_OPTIONS } from "@/lib/constants";
 import { getClientOptionsForFinance, getOpenInvoices, listInvoices } from "@/features/invoices/queries";
 import { listPayments } from "@/features/payments/queries";
 import { listCategories, listExpenses } from "@/features/expenses/queries";
@@ -47,6 +50,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const billing = tab ? await loadBilling(tab, client.id, sp) : null;
   const finance = billingTabs.length ? await getClientFinanceSummary(client.id) : null;
 
+  const projects = await getClientProjects(client.id, user);
   const [timeline, users, services] = await Promise.all([
     getClientTimeline(client.id, client.sourceLead?.id ?? null),
     getUserOptions(),
@@ -119,6 +123,23 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                 <Link href={`/leads/${client.sourceLead.id}`} className="text-sm font-medium text-primary hover:underline">
                   View {client.sourceLead.fullName}&apos;s lead history →
                 </Link>
+              </CardContent>
+            </Card>
+          ) : null}
+          {can(user, "projects.view") ? (
+            <Card>
+              <CardHeader><CardTitle>Projects</CardTitle><CardDescription>{projects.length ? `${projects.length} project${projects.length === 1 ? "" : "s"}` : "None yet"}</CardDescription></CardHeader>
+              <CardContent>
+                {projects.length === 0 ? <p className="text-sm text-muted-foreground">Projects for this client will appear here.</p> : (
+                  <ul className="divide-y">
+                    {projects.map((p) => (
+                      <li key={p.id} className="flex items-center gap-2 py-2 first:pt-0 last:pb-0">
+                        <Link href={`/projects/${p.id}`} className="min-w-0 flex-1 truncate text-sm hover:underline">{p.name}</Link>
+                        <StatusBadge tone={PROJECT_STATUS_TONE[p.status]}>{labelOf(PROJECT_STATUS_OPTIONS, p.status)}</StatusBadge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           ) : null}

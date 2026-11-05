@@ -19,8 +19,12 @@ import { LogoMark } from "@/components/brand/logo";
 import { useSession } from "@/components/providers/session-provider";
 import { UserMenu } from "./user-menu";
 import { visibleNav } from "./nav-config";
+import { TableIconView } from "@/features/tables/components/table-icon";
+import type { TableIcon } from "@/lib/dynamic/types";
 
-export function AppSidebar() {
+export type NavTable = { name: string; slug: string; icon: TableIcon };
+
+export function AppSidebar({ tables = [] }: { tables?: NavTable[] }) {
   const user = useSession();
   const pathname = usePathname();
   const groups = visibleNav(user.permissions);
@@ -53,7 +57,7 @@ export function AppSidebar() {
                   // The longest matching nav href wins, so "/finance" isn't active on "/finance/invoices".
                   const best = groups.flatMap((g) => g.items).filter((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))
                     .sort((a, b) => b.href.length - a.href.length)[0];
-                  const active = best?.href === item.href;
+                  const active = best?.href === item.href && !(item.href === "/tables" && pathname.startsWith("/tables/") && !pathname.startsWith("/tables/new"));
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
@@ -65,6 +69,19 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   );
                 })}
+                {group.label === "Custom tables"
+                  ? tables.slice(0, 8).map((t) => {
+                      const href = `/tables/${t.slug}`;
+                      const active = pathname === href || pathname.startsWith(`${href}/`);
+                      return (
+                        <SidebarMenuItem key={t.slug}>
+                          <SidebarMenuButton asChild isActive={active} tooltip={t.name}>
+                            <Link href={href}><TableIconView icon={t.icon} /><span>{t.name}</span></Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })
+                  : null}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

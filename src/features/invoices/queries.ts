@@ -139,7 +139,7 @@ export type InvoiceDetail = {
   issueDate: string;
   dueDate: string;
   currency: Currency;
-  lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[];
+  lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[]
   subtotal: number;
   discount: number;
   taxRate: number;

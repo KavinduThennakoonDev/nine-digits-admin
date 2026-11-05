@@ -12,6 +12,7 @@ export const expenseSchema = z.object({
   expenseDate: requiredDay,
   method: z.enum(PAYMENT_METHODS),
   clientId: optionalId,
+  projectId: optionalId,
   description: text(1000),
   receiptRef: z.union([z.literal(""), z.string().trim().max(500)]).default(""),
 });

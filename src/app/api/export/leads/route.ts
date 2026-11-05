@@ -7,7 +7,9 @@ import { can, getCurrentUser } from "@/server/auth/dal";
 import { audit } from "@/server/services/audit";
 import { toCsv, toXlsx, type ExportColumn } from "@/server/services/export";
 import { buildLeadFilter } from "@/features/leads/filters";
-import { LEAD_SOURCE_OPTIONS, LEAD_STATUS_OPTIONS, labelOf } from "@/lib/constants";
+import { LEAD_SOURCE_OPTIONS, labelOf } from "@/lib/constants";
+import { statusLabel } from "@/lib/lead-statuses";
+import { getLeadStatuses } from "@/server/services/lead-statuses";
 import { formatDateTime, formatDay } from "@/lib/format";
 
 const MAX_ROWS = 50_000;
@@ -20,11 +22,13 @@ export async function GET(request: NextRequest) {
   const format = request.nextUrl.searchParams.get("format") === "xlsx" ? "xlsx" : "csv";
   const sp = Object.fromEntries(request.nextUrl.searchParams.entries());
   await connectDB();
-  const leads = await Lead.find(buildLeadFilter(sp, user)).sort({ leadDate: -1, _id: 1 }).limit(MAX_ROWS).lean();
+  const leads = await Lead.find(await buildLeadFilter(sp, user)).sort({ leadDate: -1, _id: 1 }).limit(MAX_ROWS).lean();
 
-  const [users, services] = await Promise.all([
-    User.find({ _id: { $in: [...new Set(leads.map((l) => String(l.assignedTo)).filter((v) => v !== "null"))] } }, { name: 1 }).lean(),
-    Service.find({ _id: { $in: [...new Set(leads.map((l) => String(l.interestedServiceId)).filter((v) => v !== "null"))] } }, { name: 1 }).lean(),
+  const [users, services, statuses] = await Promise.all([
+    // Missing fields come back as undefined (not null) on older or imported documents.
+    User.find({ _id: { $in: [...new Set(leads.map((l) => l.assignedTo).filter(Boolean).map(String))] } }, { name: 1 }).lean(),
+    Service.find({ _id: { $in: [...new Set(leads.map((l) => l.interestedServiceId).filter(Boolean).map(String))] } }, { name: 1 }).lean(),
+    getLeadStatuses(),
   ]);
   const userName = new Map(users.map((u) => [String(u._id), u.name]));
   const serviceName = new Map(services.map((s) => [String(s._id), s.name]));
@@ -38,7 +42,7 @@ export async function GET(request: NextRequest) {
     { header: "WhatsApp", width: 16, value: (l) => l.whatsapp ?? "" },
     { header: "Country", width: 16, value: (l) => l.country ?? "" },
     { header: "Source", width: 12, value: (l) => labelOf(LEAD_SOURCE_OPTIONS, l.source) },
-    { header: "Status", width: 18, value: (l) => labelOf(LEAD_STATUS_OPTIONS, l.status) },
+    { header: "Status", width: 18, value: (l) => statusLabel(statuses, l.status) },
     { header: "Interested service", width: 24, value: (l) => (l.interestedServiceId ? serviceName.get(String(l.interestedServiceId)) ?? "" : "") },
     { header: "Assigned to", width: 20, value: (l) => (l.assignedTo ? userName.get(String(l.assignedTo)) ?? "" : "") },
     { header: "Lead date", width: 14, value: (l) => formatDay(l.leadDate) },

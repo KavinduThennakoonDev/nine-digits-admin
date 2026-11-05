@@ -38,10 +38,13 @@ export function DataTableSelectFilter({
   param,
   label,
   options,
+  allLabel,
 }: {
   param: string;
   label: string;
   options: { value: string; label: string }[];
+  /** Text for the "no filter" option; defaults to "All <label>". */
+  allLabel?: string;
 }) {
   const url = useUrlState();
   const value = url.get(param) ?? ALL;
@@ -51,7 +54,7 @@ export function DataTableSelectFilter({
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>All {label.toLowerCase()}</SelectItem>
+        <SelectItem value={ALL}>{allLabel ?? `All ${label.toLowerCase()}`}</SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
         ))}

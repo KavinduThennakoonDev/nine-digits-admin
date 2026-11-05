@@ -17,7 +17,8 @@ import { DateTimeField } from "@/components/forms/datetime-field";
 import { applyActionError } from "@/components/forms/apply-action-error";
 import type { ComboOption } from "@/components/forms/combobox";
 import { useCan } from "@/components/providers/session-provider";
-import { LEAD_SOURCE_OPTIONS, LEAD_STATUS_OPTIONS } from "@/lib/constants";
+import { LEAD_SOURCE_OPTIONS } from "@/lib/constants";
+import { useLeadStatuses } from "@/components/providers/lead-status-provider";
 import { COUNTRIES } from "@/lib/countries";
 import { saveLeadAction } from "../actions";
 import { leadSchema, type LeadInput } from "../schemas";
@@ -55,7 +56,8 @@ function LeadForm({ initial, options, onDone }: { initial: LeadInput | null; opt
   const can = useCan();
   const isEdit = !!initial?.id;
   const converted = initial?.status === "converted";
-  const statusOptions = converted ? LEAD_STATUS_OPTIONS : LEAD_STATUS_OPTIONS.filter((o) => o.value !== "converted");
+  const ls = useLeadStatuses();
+  const statusOptions = converted ? ls.options : ls.editableOptions;
   const countryOptions = useMemo(() => {
     const c = initial?.country;
     return (c && !COUNTRIES.includes(c) ? [c, ...COUNTRIES] : COUNTRIES).map((x) => ({ value: x, label: x }));

@@ -1,6 +1,6 @@
 import { Schema, type InferSchemaType } from "mongoose";
 import { auditFieldDefs, defineModel } from "../plugins";
-import { LEAD_SOURCES, LEAD_STATUSES } from "@/lib/constants";
+import { LEAD_SOURCES } from "@/lib/constants";
 
 const leadSchema = new Schema(
   {
@@ -13,7 +13,8 @@ const leadSchema = new Schema(
     company: { type: String, trim: true, default: "" },
     interestedServiceId: { type: Schema.Types.ObjectId, ref: "Service", default: null },
     source: { type: String, enum: LEAD_SOURCES, default: "other" },
-    status: { type: String, enum: LEAD_STATUSES, default: "new" },
+    /** A key from Settings.leadStatuses — validated by the actions, not here, because the list is configurable. */
+    status: { type: String, required: true, default: "new" },
     assignedTo: { type: Schema.Types.ObjectId, ref: "User", default: null },
     leadDate: { type: Date, default: Date.now },
     nextFollowUpAt: { type: Date, default: null },
@@ -31,6 +32,8 @@ leadSchema.index({ assignedTo: 1, status: 1 });
 leadSchema.index({ nextFollowUpAt: 1, status: 1 });
 leadSchema.index({ source: 1 });
 leadSchema.index({ country: 1 });
+leadSchema.index({ deletedAt: 1, createdAt: -1 });
+leadSchema.index({ convertedAt: 1 }, { partialFilterExpression: { convertedAt: { $type: "date" } } });
 
 export type LeadDoc = InferSchemaType<typeof leadSchema>;
 export const Lead = defineModel("Lead", leadSchema);

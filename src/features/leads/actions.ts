@@ -14,18 +14,24 @@ import { User } from "@/server/db/models/user";
 import { authorize, can, type CurrentUser } from "@/server/auth/dal";
 import { canSeeAssigned } from "@/server/auth/scope";
 import { audit, diff } from "@/server/services/audit";
+import { notify, usersWith } from "@/server/services/notify";
 import { AppError } from "@/server/errors";
 import { parse, runAction } from "@/server/action";
 import { amountToMinor, dayToDate, idOrNull, instantToDate } from "@/lib/fields";
 import { formatDateTime } from "@/lib/format";
-import { LEAD_STATUS_OPTIONS, labelOf, type LeadStatus } from "@/lib/constants";
+import { CONVERTED_STATUS, NEW_STATUS, statusLabel as labelFor, type LeadStatusDef } from "@/lib/lead-statuses";
+import { getLeadStatuses } from "@/server/services/lead-statuses";
 import type { ActionResult } from "@/lib/action-result";
 import {
-  convertLeadSchema, EDITABLE_LEAD_STATUSES, leadSchema, logActivitySchema,
+  convertLeadSchema, leadSchema, logActivitySchema,
   type ConvertLeadInput, type LeadInput, type LogActivityInput,
 } from "./schemas";
 
-const statusLabel = (s: string) => labelOf(LEAD_STATUS_OPTIONS, s);
+/** A status someone may pick by hand: configured, and not "converted" (only conversion sets that). */
+function assertPickable(statuses: LeadStatusDef[], status: string) {
+  if (status === CONVERTED_STATUS) throw new AppError("VALIDATION", "Use “Convert to client” to convert a lead.", { status: ["Pick another status."] });
+  if (!statuses.some((s) => s.key === status)) throw new AppError("VALIDATION", "That status no longer exists.", { status: ["Pick another status."] });
+}
 
 async function loadVisibleLead(id: string, user: CurrentUser) {
   if (!Types.ObjectId.isValid(id)) throw new AppError("NOT_FOUND", "Lead not found.");
@@ -65,8 +71,10 @@ export async function saveLeadAction(input: LeadInput): Promise<ActionResult<{ i
       leadDate: dayToDate(data.leadDate)!, nextFollowUpAt: instantToDate(data.nextFollowUpAt), notes: data.notes,
     };
 
+    const statuses = await getLeadStatuses();
+    const statusLabel = (s: string) => labelFor(statuses, s);
     if (isCreate) {
-      if (data.status === "converted") throw new AppError("VALIDATION", "Use “Convert to client” to convert a lead.", { status: ["Pick another status."] });
+      assertPickable(statuses, data.status);
       const assignedTo = resolveAssignee(actor, data.assignedTo, null);
       if (assignedTo) await assertAssignee(assignedTo);
       const lead = await Lead.create({ ...fields, status: data.status, assignedTo, createdBy: actor.id, updatedBy: actor.id });
@@ -74,6 +82,10 @@ export async function saveLeadAction(input: LeadInput): Promise<ActionResult<{ i
       if (fields.nextFollowUpAt) acts.push({ leadId: lead._id, type: "system", userId: actor.id, meta: { detail: `Follow-up set for ${formatDateTime(fields.nextFollowUpAt)}` } });
       await LeadActivity.insertMany(acts);
       await audit({ userId: actor.id, action: "create", module: "leads", recordId: String(lead._id), summary: `Created lead ${data.fullName}`, after: { fullName: data.fullName, source: data.source } });
+      await notify({
+        type: "lead_new", actorId: actor.id, userIds: assignedTo ? [assignedTo] : await usersWith("leads.assign"),
+        title: `New lead: ${data.fullName}`, body: [data.company, data.country].filter(Boolean).join(" · "), link: `/leads/${lead._id}`,
+      });
       refresh();
       return { id: String(lead._id) };
     }
@@ -84,9 +96,9 @@ export async function saveLeadAction(input: LeadInput): Promise<ActionResult<{ i
     if (assignedTo !== currentAssignee && assignedTo) await assertAssignee(assignedTo);
 
     // Status: converted leads stay converted; nobody can jump to "converted" from the form.
-    let status = data.status as LeadStatus;
-    if (lead.status === "converted") status = "converted";
-    else if (status === "converted") throw new AppError("VALIDATION", "Use “Convert to client” to convert a lead.", { status: ["Pick another status."] });
+    let status = data.status;
+    if (lead.status === CONVERTED_STATUS) status = CONVERTED_STATUS;
+    else if (status !== lead.status) assertPickable(statuses, status);
 
     const before = {
       ...Object.fromEntries(Object.keys(fields).map((k) => [k, String((lead as unknown as Record<string, unknown>)[k] ?? "")])),
@@ -105,6 +117,9 @@ export async function saveLeadAction(input: LeadInput): Promise<ActionResult<{ i
     if (currentAssignee !== assignedTo) {
       const name = assignedTo ? (await User.findById(assignedTo, { name: 1 }).lean())?.name ?? "someone" : null;
       acts.push({ leadId: lead._id, type: "assignment", userId: actor.id, meta: { detail: name ? `Assigned to ${name}` : "Unassigned" } });
+      if (assignedTo) {
+        await notify({ type: "lead_assigned", actorId: actor.id, userIds: [assignedTo], title: `Lead assigned to you: ${data.fullName}`, link: `/leads/${lead._id}` });
+      }
     }
     if ((fields.nextFollowUpAt?.getTime() ?? null) !== prevFollowUp) {
       acts.push({ leadId: lead._id, type: "system", userId: actor.id, meta: { detail: fields.nextFollowUpAt ? `Follow-up set for ${formatDateTime(fields.nextFollowUpAt)}` : "Follow-up cleared" } });
@@ -138,9 +153,12 @@ export async function logLeadActivityAction(input: LogActivityInput): Promise<Ac
     }];
 
     // Status: explicit choice wins; otherwise the first real contact moves a fresh lead to "Contacted".
-    let nextStatus = (data.newStatus || null) as LeadStatus | null;
-    if (!nextStatus && reachedThem && (lead.status === "new" || lead.status === "not_contacted")) nextStatus = "contacted";
-    if (nextStatus && lead.status !== "converted" && nextStatus !== lead.status && (EDITABLE_LEAD_STATUSES as readonly string[]).includes(nextStatus)) {
+    const statuses = await getLeadStatuses();
+    const statusLabel = (s: string) => labelFor(statuses, s);
+    let nextStatus = data.newStatus || null;
+    if (nextStatus) assertPickable(statuses, nextStatus);
+    if (!nextStatus && reachedThem && (lead.status === NEW_STATUS || lead.status === "not_contacted") && statuses.some((s) => s.key === "contacted")) nextStatus = "contacted";
+    if (nextStatus && lead.status !== CONVERTED_STATUS && nextStatus !== lead.status) {
       acts.push({ leadId: lead._id, type: "status_change", occurredAt, userId: actor.id, meta: { detail: `${statusLabel(lead.status)} → ${statusLabel(nextStatus)}`, from: lead.status, to: nextStatus } });
       lead.status = nextStatus;
     }
@@ -159,16 +177,19 @@ export async function logLeadActivityAction(input: LogActivityInput): Promise<Ac
 export async function setLeadStatusAction(id: string, status: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const actor = await authorize("leads.update");
-    if (!(EDITABLE_LEAD_STATUSES as readonly string[]).includes(status)) throw new AppError("VALIDATION", "Use “Convert to client” to convert a lead.");
     await connectDB();
+    const statuses = await getLeadStatuses();
+    assertPickable(statuses, status);
+    const statusLabel = (s: string) => labelFor(statuses, s);
     const lead = await loadVisibleLead(id, actor);
-    if (lead.status === "converted") throw new AppError("VALIDATION", "This lead has already been converted.");
+    if (lead.status === CONVERTED_STATUS) throw new AppError("VALIDATION", "This lead has already been converted.");
     if (lead.status === status) return null;
     const from = lead.status;
-    lead.status = status as LeadStatus;
+    lead.status = status;
     lead.updatedBy = new Types.ObjectId(actor.id);
     await lead.save();
     await LeadActivity.create({ leadId: lead._id, type: "status_change", userId: actor.id, meta: { detail: `${statusLabel(from)} → ${statusLabel(status)}`, from, to: status } });
+    await audit({ userId: actor.id, action: "update", module: "leads", recordId: id, summary: `Moved lead ${lead.fullName} to ${statusLabel(status)}`, before: { status: from }, after: { status } });
     refresh();
     return null;
   });
@@ -226,6 +247,7 @@ export async function convertLeadAction(input: ConvertLeadInput): Promise<Action
       throw new AppError("VALIDATION", "One of the selected services no longer exists.", { serviceIds: ["Remove services that no longer exist."] });
     }
 
+    const statuses = await getLeadStatuses();
     const clientId = await withTransaction(async (session) => {
       const now = new Date();
       const [client] = await Client.create([{
@@ -242,7 +264,7 @@ export async function convertLeadAction(input: ConvertLeadInput): Promise<Action
       await lead.save({ session });
       await LeadActivity.create([{
         leadId: lead._id, type: "conversion", userId: actor.id, occurredAt: now,
-        meta: { detail: `${statusLabel(from)} → Converted · client “${data.clientName}”`, clientId: String(client._id) },
+        meta: { detail: `${labelFor(statuses, from)} → ${labelFor(statuses, CONVERTED_STATUS)} · client “${data.clientName}”`, clientId: String(client._id) },
       }], { session });
       await ClientActivity.create([{ clientId: client._id, type: "system", userId: actor.id, occurredAt: now, body: `Converted from lead ${lead.fullName}` }], { session });
       return String(client._id);

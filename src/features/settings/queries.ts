@@ -1,6 +1,7 @@
 import "server-only";
 import { connectDB } from "@/server/db/connect";
 import { Settings } from "@/server/db/models/settings";
+import { Lead } from "@/server/db/models/lead";
 import type { Currency } from "@/lib/constants";
 
 export type AppSettings = {
@@ -12,7 +13,7 @@ export type AppSettings = {
 /** Reads (and lazily creates) the singleton settings document. Callers authorize first. */
 export async function getSettings(): Promise<AppSettings> {
   await connectDB();
-  const s = await Settings.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global" } }, { upsert: true, new: true }).lean();
+  const s = await Settings.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global" } }, { upsert: true, returnDocument: "after" }).lean();
   return {
     agency: {
       name: s.agency?.name ?? "Nine Digits",
@@ -34,4 +35,14 @@ export async function getSettings(): Promise<AppSettings> {
     },
     invoice: { prefix: s.invoice?.prefix ?? "ND", defaultDueDays: s.invoice?.defaultDueDays ?? 14 },
   };
+}
+
+/** How many leads (including archived) sit in each status — needed before a status can be removed. */
+export async function getLeadStatusUsage(): Promise<Record<string, number>> {
+  await connectDB();
+  const rows = await Lead.aggregate<{ _id: string; n: number }>([
+    { $match: { deletedAt: null } },
+    { $group: { _id: "$status", n: { $sum: 1 } } },
+  ]);
+  return Object.fromEntries(rows.map((r) => [r._id, r.n]));
 }

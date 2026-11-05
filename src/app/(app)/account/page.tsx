@@ -5,6 +5,7 @@ import { requireUser } from "@/server/auth/dal";
 import { getProfile } from "@/features/users/queries";
 import { ProfileForm } from "@/features/auth/components/profile-form";
 import { ChangePasswordForm } from "@/features/auth/components/change-password-form";
+import { NotificationPrefs } from "@/features/notifications/components/notification-prefs";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -29,6 +30,13 @@ export default async function AccountPage() {
         <CardContent className="max-w-md">
           <ChangePasswordForm />
         </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Notifications</CardTitle>
+          <CardDescription>Choose which in-app notifications you receive.</CardDescription>
+        </CardHeader>
+        <CardContent><NotificationPrefs muted={profile?.mutedNotifications ?? []} /></CardContent>
       </Card>
     </PageContainer>
   );

@@ -5,7 +5,9 @@ import { refresh } from "next/cache";
 import { connectDB } from "@/server/db/connect";
 import { User } from "@/server/db/models/user";
 import { Session } from "@/server/db/models/session";
-import { createSession, destroyCurrentSession } from "@/server/auth/session";
+import { clientIp, createSession, destroyCurrentSession } from "@/server/auth/session";
+import { headers } from "next/headers";
+import { hit } from "@/server/services/rate-limit";
 import { fakeVerify, hashPassword, verifyPassword } from "@/server/auth/password";
 import { getCurrentUser } from "@/server/auth/dal";
 import { audit, diff } from "@/server/services/audit";
@@ -25,11 +27,21 @@ import {
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 15 * 60 * 1000;
 const INVALID = "Incorrect email or password.";
+/** Per-IP ceiling on sign-in attempts, on top of the per-account lockout. */
+const IP_LIMIT = 30;
+const IP_WINDOW_MS = 15 * 60 * 1000;
 
 export async function loginAction(input: LoginInput): Promise<ActionResult<never>> {
   const result = await runAction(async () => {
     const { email, password, remember, next } = parse(loginSchema, input);
     await connectDB();
+
+    const ip = clientIp(await headers()) || "unknown";
+    const throttle = await hit(`login:ip:${ip}`, IP_LIMIT, IP_WINDOW_MS);
+    if (throttle.limited) {
+      const minutes = Math.max(1, Math.ceil(throttle.retryAfterMs / 60_000));
+      throw new AppError("RATE_LIMITED", `Too many sign-in attempts from this network. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`);
+    }
 
     const user = await User.findOne({ email }).select("+passwordHash +failedLoginCount +lockedUntil");
     if (!user) {

@@ -11,7 +11,8 @@ import { TextField } from "@/components/forms/text-field";
 import { SelectField } from "@/components/forms/select-field";
 import { DateTimeField } from "@/components/forms/datetime-field";
 import { applyActionError } from "@/components/forms/apply-action-error";
-import { CALL_OUTCOME_OPTIONS, LEAD_STATUS_OPTIONS, LOGGABLE_ACTIVITY_OPTIONS, type LeadStatus } from "@/lib/constants";
+import { CALL_OUTCOME_OPTIONS, LOGGABLE_ACTIVITY_OPTIONS, type LeadStatus } from "@/lib/constants";
+import { useLeadStatuses } from "@/components/providers/lead-status-provider";
 import { logLeadActivityAction } from "../actions";
 import { logActivitySchema, type LogActivityInput } from "../schemas";
 
@@ -29,6 +30,7 @@ export function LeadActivityLogger({ leadId, status, hasFollowUp }: { leadId: st
   const type = useWatch({ control: form.control, name: "type" });
   const followUp = useWatch({ control: form.control, name: "followUp" });
   const converted = status === "converted";
+  const ls = useLeadStatuses();
 
   const onSubmit = form.handleSubmit(async (values) => {
     const result = await logLeadActivityAction(values);
@@ -56,7 +58,7 @@ export function LeadActivityLogger({ leadId, status, hasFollowUp }: { leadId: st
           <DateTimeField control={form.control} name="occurredAt" label="When" description="Leave empty for right now." />
           {!converted ? (
             <SelectField control={form.control} name="newStatus" label="Update status" allowNone noneLabel="Keep current status"
-              options={LEAD_STATUS_OPTIONS.filter((o) => o.value !== "converted" && o.value !== status)} placeholder="Keep current status" />
+              options={ls.editableOptions.filter((o) => o.value !== status)} placeholder="Keep current status" />
           ) : null}
         </div>
         {!converted ? (

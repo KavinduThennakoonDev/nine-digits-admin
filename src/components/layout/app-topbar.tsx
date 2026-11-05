@@ -3,6 +3,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Breadcrumbs } from "./breadcrumbs";
 import { CommandMenu } from "./command-menu";
 import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 
 export function AppTopbar() {
   return (
@@ -16,6 +17,7 @@ export function AppTopbar() {
         <div className="hidden sm:block">
           <CommandMenu />
         </div>
+        <NotificationBell />
         <ThemeToggle />
       </div>
     </header>

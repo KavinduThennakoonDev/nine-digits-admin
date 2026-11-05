@@ -5,7 +5,7 @@ import { User, type UserDoc } from "@/server/db/models/user";
 import { Role } from "@/server/db/models/role";
 import { authorize } from "@/server/auth/dal";
 import { escapeRegex, parseListParams, first, type Paginated, type SearchParams } from "@/lib/list-params";
-import { USER_STATUSES, type UserStatus } from "@/lib/constants";
+import { USER_STATUSES, type NotificationType, type UserStatus } from "@/lib/constants";
 
 export type UserRow = {
   id: string;
@@ -81,5 +81,5 @@ export async function getProfile(userId: string) {
   await connectDB();
   const u = await User.findById(userId).lean();
   if (!u) return null;
-  return { name: u.name, email: u.email, phone: u.phone ?? "", jobTitle: u.jobTitle ?? "" };
+  return { name: u.name, email: u.email, phone: u.phone ?? "", jobTitle: u.jobTitle ?? "", mutedNotifications: (u.mutedNotifications ?? []) as NotificationType[] };
 }

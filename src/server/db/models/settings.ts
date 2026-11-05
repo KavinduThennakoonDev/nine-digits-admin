@@ -28,6 +28,13 @@ const settingsSchema = new Schema(
         default: [],
       },
     },
+    /** Configurable lead pipeline, in display order. Empty = built-in defaults (lib/lead-statuses.ts). */
+    leadStatuses: {
+      type: [{ _id: false, key: { type: String, required: true }, label: { type: String, required: true }, tone: { type: String, default: "neutral" }, closed: { type: Boolean, default: false } }],
+      default: [],
+    },
+    /** Last time time-based reminders were generated (throttles the on-demand sweep). */
+    remindersSweptAt: { type: Date, default: null },
     invoice: {
       prefix: { type: String, default: "ND" },
       defaultDueDays: { type: Number, default: 14 },

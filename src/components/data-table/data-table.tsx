@@ -108,7 +108,10 @@ function DataTableInner<T extends RowData>({ columns, rows, total, page, pageSiz
                 <TableRow
                   key={row.id}
                   className={cn(onRowClick && "cursor-pointer")}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  onClick={onRowClick ? (e) => {
+                    // React bubbles events from portals (menus, dialogs) through the row; only real row clicks count.
+                    if (e.currentTarget.contains(e.target as Node)) onRowClick(row.original);
+                  } : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className={cn("py-2.5", cell.column.columnDef.meta?.cellClassName)}>

@@ -14,7 +14,7 @@ export async function nextInvoiceNumber(issueDate: Date, session: ClientSession)
   const counter = await Counter.findOneAndUpdate(
     { _id: `invoice-${year}` },
     { $inc: { seq: 1 } },
-    { upsert: true, new: true, session },
+    { upsert: true, returnDocument: "after", session },
   ).lean();
   return `${prefix}-${year}-${String(counter!.seq).padStart(4, "0")}`;
 }

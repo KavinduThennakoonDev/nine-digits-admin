@@ -6,7 +6,8 @@ import { can, type CurrentUser } from "@/server/auth/dal";
 import { Client } from "@/server/db/models/client";
 import { Lead } from "@/server/db/models/lead";
 import { assignedScope } from "@/server/auth/scope";
-import { CLOSED_LEAD_STATUSES, type LeadSource, type LeadStatus } from "@/lib/constants";
+import type { LeadSource, LeadStatus } from "@/lib/constants";
+import { getClosedLeadStatuses } from "@/server/services/lead-statuses";
 import { startOfAgencyDay } from "@/lib/format";
 
 export type ActivityItem = {
@@ -48,18 +49,21 @@ function startOfAgencyMonth(now = new Date()) {
   return new Date(`${ymd}-01T00:00:00+05:30`);
 }
 
-export async function getCrmStats(user: CurrentUser) {
+export async function getCrmStats(user: CurrentUser, range?: { from: Date | null; to: Date | null }) {
   await connectDB();
-  const monthStart = startOfAgencyMonth();
+  // New/converted counts follow the dashboard's date range (default: this month).
+  const r = range ?? { from: startOfAgencyMonth(), to: null };
+  const inRange = r.from ? { $gte: r.from, ...(r.to ? { $lt: r.to } : {}) } : { $ne: null };
   const clientBase = { deletedAt: null, archivedAt: null, ...assignedScope(user, "clients.view_all") };
   const leadBase = { deletedAt: null, archivedAt: null, ...assignedScope(user, "leads.view_all") };
   const now = new Date();
+  const CLOSED_LEAD_STATUSES = await getClosedLeadStatuses();
   const [clients, activeClients, leads, newLeads, convertedThisMonth, openLeads, overdue] = await Promise.all([
     can(user, "clients.view") ? Client.countDocuments(clientBase) : null,
     can(user, "clients.view") ? Client.countDocuments({ ...clientBase, status: "active" }) : null,
     can(user, "leads.view") ? Lead.countDocuments(leadBase) : null,
-    can(user, "leads.view") ? Lead.countDocuments({ ...leadBase, leadDate: { $gte: monthStart } }) : null,
-    can(user, "leads.view") ? Lead.countDocuments({ ...leadBase, convertedAt: { $gte: monthStart } }) : null,
+    can(user, "leads.view") ? Lead.countDocuments({ ...leadBase, leadDate: inRange }) : null,
+    can(user, "leads.view") ? Lead.countDocuments({ ...leadBase, convertedAt: inRange }) : null,
     can(user, "leads.view") ? Lead.countDocuments({ ...leadBase, status: { $nin: CLOSED_LEAD_STATUSES } }) : null,
     can(user, "leads.view") ? Lead.countDocuments({ ...leadBase, status: { $nin: CLOSED_LEAD_STATUSES }, nextFollowUpAt: { $lt: now } }) : null,
   ]);
@@ -73,6 +77,7 @@ export async function getUpcomingFollowUps(user: CurrentUser, limit = 8): Promis
   await connectDB();
   const now = new Date();
   const horizon = new Date(now.getTime() + 7 * 86_400_000);
+  const CLOSED_LEAD_STATUSES = await getClosedLeadStatuses();
   const leads = await Lead.find({
     deletedAt: null, archivedAt: null, status: { $nin: CLOSED_LEAD_STATUSES },
     nextFollowUpAt: { $ne: null, $lte: horizon }, ...assignedScope(user, "leads.view_all"),

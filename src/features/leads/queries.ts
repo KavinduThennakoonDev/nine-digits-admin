@@ -9,10 +9,11 @@ import { User } from "@/server/db/models/user";
 import { authorize, type CurrentUser } from "@/server/auth/dal";
 import { assignedScope, canSeeAssigned } from "@/server/auth/scope";
 import { parseListParams, type Paginated, type SearchParams } from "@/lib/list-params";
-import { CALL_OUTCOME_OPTIONS, CLOSED_LEAD_STATUSES, labelOf, type LeadSource, type LeadStatus } from "@/lib/constants";
+import { CALL_OUTCOME_OPTIONS, labelOf, type LeadSource, type LeadStatus } from "@/lib/constants";
 import { formatDateTime, startOfAgencyDay, toDayString } from "@/lib/format";
 import type { TimelineItem } from "@/components/feedback/timeline";
-import { buildLeadFilter, OPEN_STATUS_FILTER } from "./filters";
+import { buildLeadFilter, openStatusFilter } from "./filters";
+import { getClosedLeadStatuses } from "@/server/services/lead-statuses";
 
 export type LeadRow = {
   id: string;
@@ -47,14 +48,14 @@ async function serviceNames(ids: unknown[]) {
   return new Map(services.map((s) => [String(s._id), s.name]));
 }
 
-const isOverdue = (at: Date | null | undefined, status: string) =>
-  !!at && at.getTime() < Date.now() && !CLOSED_LEAD_STATUSES.includes(status as LeadStatus);
+const isOverdue = (at: Date | null | undefined, status: string, closed: string[]) =>
+  !!at && at.getTime() < Date.now() && !closed.includes(status);
 
 export async function listLeads(sp: SearchParams): Promise<Paginated<LeadRow>> {
   const user = await authorize("leads.view");
   await connectDB();
   const params = parseListParams(sp, LEAD_SORTABLE, "leadDate");
-  const filter = buildLeadFilter(sp, user);
+  const [filter, closed] = await Promise.all([buildLeadFilter(sp, user), getClosedLeadStatuses()]);
 
   const [docs, total] = await Promise.all([
     Lead.find(filter)
@@ -82,7 +83,7 @@ export async function listLeads(sp: SearchParams): Promise<Paginated<LeadRow>> {
       leadDate: (l.leadDate as Date).toISOString(),
       nextFollowUpAt: l.nextFollowUpAt?.toISOString() ?? null,
       lastContactedAt: l.lastContactedAt?.toISOString() ?? null,
-      overdue: isOverdue(l.nextFollowUpAt, l.status as string),
+      overdue: isOverdue(l.nextFollowUpAt, l.status as string, closed),
     })),
     total,
     page: params.page,
@@ -96,7 +97,7 @@ export async function getFollowUpCounts(user: CurrentUser) {
   await connectDB();
   const now = new Date();
   const endOfToday = new Date(startOfAgencyDay(now).getTime() + 86_400_000);
-  const base = { deletedAt: null, archivedAt: null, status: OPEN_STATUS_FILTER, ...assignedScope(user, "leads.view_all") };
+  const base = { deletedAt: null, archivedAt: null, status: await openStatusFilter(), ...assignedScope(user, "leads.view_all") };
   const [overdue, today] = await Promise.all([
     Lead.countDocuments({ ...base, nextFollowUpAt: { $lt: now } }),
     Lead.countDocuments({ ...base, nextFollowUpAt: { $gte: now, $lt: endOfToday } }),
@@ -148,11 +149,12 @@ export async function getLead(id: string, user: CurrentUser): Promise<LeadDetail
   const l = await Lead.findOne({ _id: id, deletedAt: null }).lean();
   if (!l || !canSeeAssigned(user, "leads.view_all", l.assignedTo)) return null;
 
-  const [names, services, client, callCount] = await Promise.all([
+  const [names, services, client, callCount, closed] = await Promise.all([
     userNames([l.assignedTo, l.createdBy]),
     serviceNames([l.interestedServiceId]),
     l.convertedClientId ? Client.findOne({ _id: l.convertedClientId, deletedAt: null }, { clientName: 1 }).lean() : null,
     LeadActivity.countDocuments({ leadId: l._id, type: "call" }),
+    getClosedLeadStatuses(),
   ]);
   const nextFollowUpAt = l.nextFollowUpAt?.toISOString() ?? null;
   return {
@@ -172,7 +174,7 @@ export async function getLead(id: string, user: CurrentUser): Promise<LeadDetail
     leadDate: (l.leadDate as Date).toISOString(),
     nextFollowUpAt,
     lastContactedAt: l.lastContactedAt?.toISOString() ?? null,
-    overdue: isOverdue(l.nextFollowUpAt, l.status as string),
+    overdue: isOverdue(l.nextFollowUpAt, l.status as string, closed),
     notes: l.notes ?? "",
     convertedClient: client ? { id: String(client._id), clientName: client.clientName } : null,
     convertedAt: l.convertedAt?.toISOString() ?? null,

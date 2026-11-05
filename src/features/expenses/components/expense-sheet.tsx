@@ -18,7 +18,7 @@ import { PAYMENT_METHOD_OPTIONS } from "@/lib/constants";
 import { saveExpenseAction } from "../actions";
 import { expenseSchema, type ExpenseInput } from "../schemas";
 
-export type ExpenseFormOptions = { categories: (ComboOption & { active: boolean })[]; clients: ComboOption[] };
+export type ExpenseFormOptions = { categories: (ComboOption & { active: boolean })[]; clients: ComboOption[]; projects?: ComboOption[] };
 
 const today = () => {
   const d = new Date();
@@ -52,7 +52,7 @@ function ExpenseForm({ initial, presetClientId, options, onDone }: { initial: Ex
     resolver: zodResolver(expenseSchema),
     defaultValues: initial ?? {
       name: "", categoryId: "", amount: "", currency: "LKR", expenseDate: today(), method: "bank_transfer",
-      clientId: presetClientId ?? "", description: "", receiptRef: "",
+      clientId: presetClientId ?? "", projectId: "", description: "", receiptRef: "",
     },
   });
   // Inactive categories can't be chosen, but an existing expense keeps showing its own.
@@ -77,6 +77,10 @@ function ExpenseForm({ initial, presetClientId, options, onDone }: { initial: Ex
           </div>
           <ComboboxField control={form.control} name="clientId" label="Related client" options={options.clients}
             placeholder="Not client-specific" searchPlaceholder="Search clients…" />
+          {options.projects?.length ? (
+            <ComboboxField control={form.control} name="projectId" label="Related project" options={options.projects}
+              placeholder="Not project-specific" searchPlaceholder="Search projects…" />
+          ) : null}
           <TextField control={form.control} name="receiptRef" label="Receipt link or reference"
             placeholder="https://drive.google.com/… or receipt #" description="Paste a link to the receipt (e.g. Google Drive) or its number." />
           <TextField control={form.control} name="description" label="Notes" multiline />

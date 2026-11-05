@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { Types } from "mongoose";
 import { connectDB } from "@/server/db/connect";
 import { Role } from "@/server/db/models/role";
 import { User } from "@/server/db/models/user";
@@ -51,6 +52,7 @@ export async function saveRoleAction(input: RoleInput): Promise<ActionResult<{ i
 export async function deleteRoleAction(id: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const actor = await authorize("roles.manage");
+    if (typeof id !== "string" || !Types.ObjectId.isValid(id)) throw new AppError("NOT_FOUND", "Role not found.");
     await connectDB();
     const role = await Role.findById(id);
     if (!role) throw new AppError("NOT_FOUND", "Role not found.");

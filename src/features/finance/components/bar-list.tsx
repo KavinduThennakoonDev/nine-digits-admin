@@ -4,13 +4,15 @@ import { formatMoney } from "@/lib/money";
 
 /** Ranked horizontal bars — values are printed, so colour is never the only cue. */
 export function BarList({
-  rows, base, color, hrefFor, empty,
+  rows, base, color, hrefFor, empty, format = "money",
 }: {
   rows: { id: string; name: string; total: number; hint?: string }[];
   base: Currency;
   color: string;
   hrefFor?: (id: string) => string;
   empty: React.ReactNode;
+  /** How values print; shares are only shown for additive values (money/number). */
+  format?: "money" | "number" | "percent";
 }) {
   if (rows.length === 0) return <>{empty}</>;
   const max = Math.max(...rows.map((r) => r.total), 1);
@@ -24,8 +26,10 @@ export function BarList({
             <div className="flex items-baseline justify-between gap-3 text-sm">
               {label}
               <span className="tabular shrink-0 font-medium">
-                {formatMoney(r.total, base)}
-                <span className="ml-1.5 text-xs font-normal text-muted-foreground">{sum ? Math.round((r.total / sum) * 100) : 0}%</span>
+                {format === "money" ? formatMoney(r.total, base) : format === "percent" ? `${Math.round(r.total * 100)}%` : r.total.toLocaleString("en-US")}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  {format === "percent" ? r.hint ?? "" : `${sum ? Math.round((r.total / sum) * 100) : 0}%`}
+                </span>
               </span>
             </div>
             <div className="h-2 rounded-full bg-muted">

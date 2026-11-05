@@ -2,10 +2,10 @@ import { z } from "zod";
 import {
   currency, objectId, optionalAmount, optionalDay, optionalEmail, optionalId, optionalInstant, phone, requiredDay, requiredText, text,
 } from "@/lib/fields";
-import { CALL_OUTCOMES, CLIENT_STATUSES, CLIENT_TYPES, LEAD_SOURCES, LEAD_STATUSES } from "@/lib/constants";
+import { CALL_OUTCOMES, CLIENT_STATUSES, CLIENT_TYPES, LEAD_SOURCES } from "@/lib/constants";
 
-/** "converted" is only reachable through the conversion flow, which links the new client. */
-export const EDITABLE_LEAD_STATUSES = LEAD_STATUSES.filter((s) => s !== "converted");
+/** A status key; checked against the configured list (Settings) by the actions. */
+const statusKey = z.string().trim().min(1, "Pick a status.").max(40);
 
 export const leadSchema = z
   .object({
@@ -18,7 +18,7 @@ export const leadSchema = z
     company: text(160),
     interestedServiceId: optionalId,
     source: z.enum(LEAD_SOURCES),
-    status: z.enum(LEAD_STATUSES),
+    status: statusKey,
     assignedTo: optionalId,
     leadDate: requiredDay,
     nextFollowUpAt: optionalInstant,
@@ -40,7 +40,7 @@ export const logActivitySchema = z
     outcome: z.union([z.literal(""), z.enum(CALL_OUTCOMES)]).default(""),
     durationMin: z.union([z.literal(""), z.string().regex(/^\d{1,4}$/, "Minutes as a whole number.")]).default(""),
     notes: text(5000),
-    newStatus: z.union([z.literal(""), z.enum(EDITABLE_LEAD_STATUSES as [string, ...string[]])]).default(""),
+    newStatus: z.union([z.literal(""), statusKey]).default(""),
     followUp: z.enum(["keep", "set", "clear"]).default("keep"),
     nextFollowUpAt: optionalInstant,
   })

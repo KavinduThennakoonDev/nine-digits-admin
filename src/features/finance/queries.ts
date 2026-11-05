@@ -8,7 +8,7 @@ import { Invoice } from "@/server/db/models/invoice";
 import { Client } from "@/server/db/models/client";
 import { getFx, toBaseExpr } from "@/server/services/fx";
 import { getReceivablesSummary, displayStatus } from "@/features/invoices/queries";
-import { agencyYearMonth, periodMatch, type Period } from "@/lib/periods";
+import { agencyYearMonth, periodMatch, periodRange, rangeMatch, type Period } from "@/lib/periods";
 import { APP_TIMEZONE } from "@/lib/format";
 import type { Currency } from "@/lib/constants";
 
@@ -29,10 +29,13 @@ async function sumByMonth(kind: "payments" | "expenses", match: Record<string, u
   return new Map(rows.map((r) => [r._id, r.total]));
 }
 
-export async function getFinanceOverview(period: Period) {
+type DateRange = { from: Date | null; to: Date | null };
+
+/** Accepts a preset period or an explicit range (dashboard / custom dates). */
+export async function getFinanceOverview(periodOrRange: Period | DateRange) {
   await connectDB();
   const { base } = await getFx();
-  const range = periodMatch(period);
+  const range = rangeMatch(typeof periodOrRange === "string" ? periodRange(periodOrRange) : periodOrRange);
   const payMatch = { status: "completed", ...(range ? { paymentDate: range } : {}) };
   const expMatch = { deletedAt: null, ...(range ? { expenseDate: range } : {}) };
   const invMatch = { deletedAt: null, status: { $nin: ["draft", "void"] }, ...(range ? { issueDate: range } : {}) };
@@ -82,10 +85,10 @@ export async function getMonthlySeries(): Promise<{ base: Currency; points: Mont
   return { base, points };
 }
 
-export async function getExpensesByCategory(period: Period) {
+export async function getExpensesByCategory(periodOrRange: Period | DateRange) {
   await connectDB();
   const { base } = await getFx();
-  const range = periodMatch(period);
+  const range = rangeMatch(typeof periodOrRange === "string" ? periodRange(periodOrRange) : periodOrRange);
   const rows = await Expense.aggregate<{ _id: unknown; total: number }>([
     { $match: { deletedAt: null, ...(range ? { expenseDate: range } : {}) } },
     { $group: { _id: "$categoryId", total: { $sum: toBaseExpr(base) } } },

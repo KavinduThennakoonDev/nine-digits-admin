@@ -40,6 +40,7 @@ export type UpdateProfileInput = z.input<typeof updateProfileSchema>;
 
 /** Only allow same-origin relative redirects after login. */
 export function safeNext(next: string | undefined | null): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/login")) return "/dashboard";
+  // Browsers read a backslash as "/", so "/\evil.com" would leave the site; control characters can hide the same trick.
+  if (!next || !next.startsWith("/") || next.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(next) || next.startsWith("/login")) return "/dashboard";
   return next;
 }
